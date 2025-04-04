@@ -483,7 +483,7 @@ fi
 #----------------
 # WordPress
 #----------------
-if [ '"$INSTALL_WORDPRESS"' = true ]; then
+if [ "$INSTALL_WORDPRESS" = true ]; then
     echo "Installing WordPress..."
     echo "Installing wp-cli..."
     curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
@@ -499,40 +499,21 @@ if [ '"$INSTALL_WORDPRESS"' = true ]; then
     echo "Installing required PHP modules for WordPress..."
     sudo dnf install -y php php-mysqlnd php-gd php-curl php-dom php-mbstring php-zip php-intl
     
-    # Install PHP Imagick module which is recommended for WordPress image processing
-    # Update system and install prerequisites
-    sudo dnf check-release-update
-    sudo dnf upgrade --releasever=latest -y
-    sudo dnf install -y php-devel php-pear gcc ImageMagick ImageMagick-devel
-
-    # Download, compile and install Imagick
-    pecl download Imagick
-    tar -xf imagick*.tgz
-    IMAGICK_DIR=$(find . -type d -name "imagick*" | head -1)
-    cd "$IMAGICK_DIR"
-    phpize
-    ./configure
-    make
-    sudo make install
-
-    # Create configuration file
-    echo "extension=imagick.so" | sudo tee /etc/php.d/25-imagick.ini > /dev/null
-
-    # Restart PHP-FPM and Apache (if applicable)
+    # Install PHP Imagick module using package manager instead of manual compilation
+    echo "Installing PHP Imagick module for WordPress image processing..."
+    sudo dnf install -y php-pecl-imagick ImageMagick
+    
+    # Verify installation
+    echo "Verifying ImageMagick installation..."
+    php -m | grep -i imagick || echo "Warning: ImageMagick PHP extension not detected"
+    
+    # Restart services to apply changes
+    echo "Restarting web services..."
     sudo systemctl restart php-fpm
     sudo systemctl restart httpd
 
-    # Verify installation
-    php -m | grep -i imagick
-
-    # Clean up
-    cd ..
-    rm -rf imagick*
-
-    echo "php-imagick installation complete!"
-
     echo "Configuring WordPress..."
-    sudo mysql -Bse "CREATE USER IF NOT EXISTS wordpressuser@localhost IDENTIFIED BY '\''password'\'';GRANT ALL PRIVILEGES ON *.* TO wordpressuser@localhost;FLUSH PRIVILEGES;"
+    sudo mysql -Bse "CREATE USER IF NOT EXISTS wordpressuser@localhost IDENTIFIED BY 'password';GRANT ALL PRIVILEGES ON *.* TO wordpressuser@localhost;FLUSH PRIVILEGES;"
     sudo -u apache wp config create --dbname=wordpress --dbuser=wordpressuser --dbpass=password --path=/var/www/html/
     wp db create --path=/var/www/html/
     sudo mysql -Bse "REVOKE ALL PRIVILEGES, GRANT OPTION FROM wordpressuser@localhost;GRANT ALL PRIVILEGES ON wordpress.* TO wordpressuser@localhost;FLUSH PRIVILEGES;"
